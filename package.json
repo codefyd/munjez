@@ -1,0 +1,50 @@
+{
+  "name": "munjez",
+  "version": "1.1.0",
+  "description": "مُنجز: شريط مهام عربي صغير على حافة شاشة ويندوز",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "icon": "node scripts/make-icon.js",
+    "dist": "electron-builder --win nsis portable"
+  },
+  "keywords": [],
+  "author": "Faris",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "@dawod/thmanyah-font-web": "^1.2.0",
+    "electron": "^45.0.0"
+  },
+  "productName": "مُنجز",
+  "build": {
+    "appId": "sa.faris.munjez",
+    "productName": "Munjez",
+    "files": [
+      "src/**",
+      "assets/**"
+    ],
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "shortcutName": "مُنجز",
+      "artifactName": "Munjez-Setup.${ext}"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "portable": {
+      "artifactName": "Munjez-Portable.${ext}"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codefyd/munjez.git"
+  }
+}
