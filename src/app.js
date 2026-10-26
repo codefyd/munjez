@@ -68,7 +68,7 @@ const ui = {
   editing: null, editType: 'daily', editTime: '', editDate: '', editTitle: '', editFocus: false,
   confirming: null, expanded: new Set(), showUpcoming: true,
   add: { star: false, time: '', parsed: '', date: '' },
-  tp: null, tpPm: null, dp: null,
+  tp: null, tpPm: null, dp: null, dpMonth: null,
   autostart: false, capture: false, msg: '', statsDay: null,
 };
 
@@ -304,7 +304,7 @@ function renderList(pv) {
 
   const left = list.filter((t) => t.type === 'once' && !isDone(t)).length;
   $('.carry-bar', pv).innerHTML = left
-    ? `<button class="btn carry-btn" data-act="carry">${I.next} رحّل غير المنجزة (${left}) لبكرة</button>`
+    ? `<button class="btn carry-btn" data-act="carry">${I.next} رحّل غير المنجزة (${left}) لبكرا</button>`
     : '';
 
   const up = upcomingList();
@@ -318,7 +318,7 @@ function renderList(pv) {
 
 const dayLabel = (k) => {
   const n = Math.round((dateOf(k) - dateOf(today())) / 86400000);
-  return n <= 0 ? 'اليوم' : n === 1 ? 'بكرة' : n === 2 ? 'بعد بكرة' : fmtShort.format(dateOf(k));
+  return n <= 0 ? 'اليوم' : n === 1 ? 'بكرا' : n === 2 ? 'بعد بكرا' : fmtShort.format(dateOf(k));
 };
 
 // مهمة قادمة: بدون إنجاز ولا سحب، بس تعديل وحذف
@@ -374,7 +374,7 @@ function itemHTML(t) {
         </div>
       </div>
       <div class="acts">
-        ${t.type === 'once' && !d ? `<button data-act="carry1" data-id="${t.id}" title="رحّلها لبكرة">${I.next}</button>` : ''}
+        ${t.type === 'once' && !d ? `<button data-act="carry1" data-id="${t.id}" title="رحّلها لبكرا">${I.next}</button>` : ''}
         <button class="${t.star ? 'on' : ''}" data-act="star" data-id="${t.id}" title="أولوية">${t.star ? I.starFill : I.star}</button>
         <button data-act="edit" data-id="${t.id}" title="تعديل">${I.pen}</button>
         <button class="del" data-act="del" data-id="${t.id}" title="حذف">${I.trash}</button>
@@ -443,18 +443,18 @@ function tpHTML(ctx, val) {
   const b = (act, v, cls, label) => `<button type="button" class="${cls || ''}" data-act="${act}" data-ctx="${ctx}" data-v="${v}">${label}</button>`;
   const rel = [[15, '15 د'], [30, '30 د'], [60, 'ساعة'], [120, 'ساعتين']]
     .map(([n, l]) => { const v = inMinutes(n); return b('tp-set', v, '', `<b>بعد ${l}</b><span class="ltr">${fmtTime(v)}</span>`); }).join('');
+  // قوائم تمرير: الساعة والدقيقة وص/م
   const hours = Array.from({ length: 12 }, (_, i) => i + 1)
-    .map((h) => b('tp-hour', h, cur && (cur[0] % 12 || 12) === h && (cur[0] >= 12) === pm ? 'on' : '', h)).join('');
-  const mins = [0, 15, 30, 45].map((m) => b('tp-min', m, cur && cur[1] === m ? 'on' : '', `:${pad(m)}`)).join('');
+    .map((h) => b('tp-hour', h, cur && (cur[0] % 12 || 12) === h ? 'on' : '', h)).join('');
+  const mins = Array.from({ length: 60 }, (_, i) => i)
+    .map((m) => b('tp-min', m, cur && cur[1] === m ? 'on' : '', pad(m))).join('');
   return `<div class="tp">
-    <label class="tp-man"><span>اكتب الوقت بالضبط</span>
-      <input type="time" class="tp-in" data-ctx="${ctx}" value="${val || ''}"></label>
     <div class="tp-rel">${rel}</div>
-    <div class="tp-head">
-      <div class="seg">${b('tp-period', 'am', pm ? '' : 'on', 'صباحًا')}${b('tp-period', 'pm', pm ? 'on' : '', 'مساءً')}</div>
-      <div class="seg tp-mins">${mins}</div>
+    <div class="tp-cols">
+      <div class="tp-col"><small>الساعة</small><div class="tp-scroll ltr">${hours}</div></div>
+      <div class="tp-col"><small>الدقيقة</small><div class="tp-scroll ltr">${mins}</div></div>
+      <div class="tp-col tp-per"><small>الفترة</small>${b('tp-period', 'am', pm ? '' : 'on', 'صباحًا')}${b('tp-period', 'pm', pm ? 'on' : '', 'مساءً')}</div>
     </div>
-    <div class="tp-hours">${hours}</div>
     <div class="tp-foot">
       ${val ? b('tp-clear', '', 'btn', 'بدون وقت') : '<span></span>'}
       <button type="button" class="btn primary" data-act="tp-close">تم</button>
@@ -466,27 +466,56 @@ function refreshTp() {
   const pv = $('.pv');
   if (!pv) return;
   if (ui.editing) renderList(pv); else if ($('.add-opts', pv)) renderAddOpts(pv);
+  // نخلي المختار في نص قائمة التمرير
+  $$('.tp-scroll', pv).forEach((col) => {
+    const on = $('.on', col);
+    if (on) col.scrollTop = on.offsetTop - (col.clientHeight - on.offsetHeight) / 2;
+  });
   $('.tp, .dp', pv)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
-/* ============ اختيار اليوم ============ */
+/* ============ اختيار التاريخ ============ */
+const fmtMonth = new Intl.DateTimeFormat('ar-u-nu-latn-ca-gregory', { month: 'long', year: 'numeric' });
+const WEEK_HEAD = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
+
 function dateChip(ctx, val) {
-  return `<button type="button" class="chip ${val ? 'has-time' : ''} ${ui.dp === ctx ? 'active' : ''}" data-act="dp-open" data-ctx="${ctx}" title="يوم المهمة">
-    ${I.cal}${val ? dayLabel(val) : 'اليوم'}</button>`;
+  return `<button type="button" class="chip ${val ? 'has-time' : ''} ${ui.dp === ctx ? 'active' : ''}" data-act="dp-open" data-ctx="${ctx}" title="تاريخ المهمة">
+    ${I.cal}${val ? dayLabel(val) : 'تحديد تاريخ'}</button>`;
+}
+
+// تقويم شهري: الأيام اللي راحت مقفلة، واليوم يرجّع المهمة لليوم
+function calHTML(ctx, val) {
+  const k = today();
+  const month = ui.dpMonth || (val || k).slice(0, 7);
+  const [y, mo] = month.split('-').map(Number);
+  const first = new Date(y, mo - 1, 1);
+  const n = new Date(y, mo, 0).getDate();
+  const cells = Array.from({ length: first.getDay() }, () => '<span></span>');
+  for (let i = 1; i <= n; i++) {
+    const d = `${month}-${pad(i)}`;
+    const cls = [(val || k) === d && 'on', d === k && 'today'].filter(Boolean).join(' ');
+    cells.push(d < k
+      ? `<span class="past">${i}</span>`
+      : `<button type="button" class="${cls}" data-act="dp-set" data-ctx="${ctx}" data-v="${d === k ? '' : d}">${i}</button>`);
+  }
+  const canBack = month > k.slice(0, 7);
+  return `<div class="cal">
+    <div class="cal-head">
+      <button type="button" data-act="dp-month" data-ctx="${ctx}" data-v="-1" ${canBack ? '' : 'disabled'} title="الشهر اللي قبل">${I.inward}</button>
+      <b>${fmtMonth.format(first)}</b>
+      <button type="button" data-act="dp-month" data-ctx="${ctx}" data-v="1" title="الشهر الجاي">${I.outward}</button>
+    </div>
+    <div class="cal-grid">${WEEK_HEAD.map((w) => `<small>${w}</small>`).join('')}${cells.join('')}</div>
+  </div>`;
 }
 
 function dpHTML(ctx, val) {
   const k = today();
   const b = (v, label) => `<button type="button" class="${(val || '') === v ? 'on' : ''}" data-act="dp-set" data-ctx="${ctx}" data-v="${v}">${label}</button>`;
   const daily = (ctx === 'add' ? S.settings.addType : ui.editType) === 'daily';
-  // الأيام بعد بكرة بأسمائها
-  const week = Array.from({ length: 5 }, (_, i) => addDays(k, i + 2))
-    .map((d) => b(d, `<b>${DAYS[dateOf(d).getDay()]}</b><span class="ltr">${dateOf(d).getDate()}/${dateOf(d).getMonth() + 1}</span>`)).join('');
   return `<div class="dp tp">
-    <div class="tp-rel">${b('', '<b>اليوم</b>')}${b(addDays(k, 1), '<b>بكرة</b>')}${b(addDays(k, 7), '<b>بعد أسبوع</b>')}</div>
-    <div class="tp-rel dp-week">${week}</div>
-    <label class="tp-man"><span>اختر تاريخ</span>
-      <input type="date" class="dp-in" data-ctx="${ctx}" min="${addDays(k, 1)}" value="${val || ''}"></label>
+    <div class="tp-rel">${b('', '<b>اليوم</b>')}${b(addDays(k, 1), '<b>بكرا</b>')}${b(addDays(k, 7), '<b>بعد أسبوع</b>')}</div>
+    ${calHTML(ctx, val)}
     <div class="tp-foot"><span class="hint">${daily ? 'اليومية تبدأ من هذا اليوم' : 'تظهر المهمة في يومها'}</span>
       <button type="button" class="btn primary" data-act="dp-close">تم</button></div>
   </div>`;
@@ -501,8 +530,15 @@ function dpSet(ctx, v, close) {
 function dpAct(name, el) {
   const ctx = el.dataset.ctx;
   switch (name) {
-    case 'dp-open': ui.dp = ui.dp === ctx ? null : ctx; ui.tp = null; refreshTp(); break;
+    case 'dp-open': ui.dp = ui.dp === ctx ? null : ctx; ui.tp = null; ui.dpMonth = null; refreshTp(); break;
     case 'dp-close': ui.dp = null; refreshTp(); break;
+    case 'dp-month': {
+      const cur = ui.dpMonth || ((ctx === 'add' ? ui.add.date : ui.editDate) || today()).slice(0, 7);
+      const [y, m] = cur.split('-').map(Number);
+      const d = new Date(y, m - 1 + +el.dataset.v, 1);
+      ui.dpMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+      refreshTp(); break;
+    }
     case 'dp-set': dpSet(ctx, el.dataset.v, true); break;
     default:
   }
@@ -536,7 +572,7 @@ function tpAct(name, el) {
       if (v) tpSet(ctx, hm((h % 12) + (ui.tpPm ? 12 : 0), m), false); else refreshTp();
       break;
     case 'tp-hour': tpSet(ctx, hm((+el.dataset.v % 12) + (tpIsPm(ctx) ? 12 : 0), v ? m : 0), false); break;
-    case 'tp-min': tpSet(ctx, hm(h, +el.dataset.v), true); break;
+    case 'tp-min': tpSet(ctx, hm(v ? h : (h % 12) + (tpIsPm(ctx) ? 12 : 0), +el.dataset.v), false); break;
     default:
   }
 }
@@ -689,18 +725,18 @@ function summaryHTML() {
   const leftOnce = left.filter((t) => t.type === 'once');
   const msg = pct === 100 ? 'يومك كامل! خلّصت كل مهامك 🎉'
     : pct >= 70 ? 'شغل رهيب، باقي لك القليل 👏'
-      : pct >= 40 ? 'خطوة طيبة، وبكرة أحسن 💪'
-        : total ? 'ولا يهمك، بكرة يوم جديد 🌱' : 'ما كان عندك مهام اليوم';
+      : pct >= 40 ? 'خطوة طيبة، وبكرا أحسن 💪'
+        : total ? 'ولا يهمك، بكرا يوم جديد 🌱' : 'ما كان عندك مهام اليوم';
   return `<div class="summary">
     <div class="sum-ring">${ring(pct, 120, 10)}<b class="ltr">${pct}%</b></div>
     <h2>أنجزت ${done} من ${total}</h2>
     <p>${msg}</p>
     ${left.length ? `<div class="left-list"><h4>ما خلصت:</h4>
       ${left.map((t) => `<div><span>○</span><span>${esc(t.title)}</span></div>`).join('')}
-      ${left.some((t) => t.type === 'daily') ? '<div class="hint">المهام اليومية تتجدد بكرة تلقائيًا.</div>' : ''}
+      ${left.some((t) => t.type === 'daily') ? '<div class="hint">المهام اليومية تتجدد بكرا تلقائيًا.</div>' : ''}
     </div>` : ''}
     <div class="sum-btns">
-      ${leftOnce.length ? `<button class="btn primary wide" data-act="carry">انقل غير المنجزة (${leftOnce.length}) لبكرة</button>` : ''}
+      ${leftOnce.length ? `<button class="btn primary wide" data-act="carry">انقل غير المنجزة (${leftOnce.length}) لبكرا</button>` : ''}
       <button class="btn wide" data-act="view" data-v="tasks">تمام</button>
     </div>
   </div>`;
@@ -878,20 +914,6 @@ document.addEventListener('input', (e) => {
     const t = parseTime(el.value).time;
     if (t !== ui.add.parsed) { ui.add.parsed = t; renderAddOpts($('.pv')); }
   } else if (el.name === 'title' && el.closest('.edit')) ui.editTitle = el.value;
-  else if (el.classList.contains('tp-in') || el.classList.contains('dp-in')) {
-    // الكتابة اليدوية: نحفظ القيمة ونحدّث الزر بس، عشان ما يضيع المؤشر من الحقل
-    const ctx = el.dataset.ctx, v = el.value;
-    if (el.classList.contains('tp-in')) {
-      if (ctx === 'add') ui.add.time = v; else ui.editTime = v;
-      const chip = $(`[data-act="tp-open"][data-ctx="${ctx}"]`);
-      if (chip) chip.outerHTML = timeChip(ctx, tpGet(ctx));
-    } else {
-      const d = v > today() ? v : '';
-      if (ctx === 'add') ui.add.date = d; else ui.editDate = d;
-      const chip = $(`[data-act="dp-open"][data-ctx="${ctx}"]`);
-      if (chip) chip.outerHTML = dateChip(ctx, d);
-    }
-  }
 });
 
 document.addEventListener('change', (e) => {

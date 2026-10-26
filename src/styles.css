@@ -203,21 +203,36 @@ body.left .dock-panel.enter { animation-name: slideL; }
 .tp-rel button { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 2px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); font-size: 11.5px; transition: border-color .12s, color .12s; }
 .tp-rel b { font-weight: 700; }
 .tp-rel span { font-size: 10.5px; color: var(--muted); }
-.tp-rel button:hover, .tp-hours button:hover { border-color: var(--accent); color: var(--accent); }
-.tp-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-.tp-mins button { padding: 3px 7px; direction: ltr; }
-.tp-hours { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
-.tp-hours button { height: 30px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 700; transition: all .12s; }
-.tp-hours button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tp-rel button:hover { border-color: var(--accent); color: var(--accent); }
+.tp-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.tp-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tp-col small { font-size: 11px; color: var(--muted); text-align: center; }
+.tp-scroll { position: relative; height: 132px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding: 2px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); scrollbar-width: thin; }
+.tp-col button { flex: none; height: 28px; border-radius: 7px; font-size: 13px; font-weight: 700; transition: background .12s, color .12s; }
+.tp-col button:hover { background: var(--hover); color: var(--accent); }
+.tp-per button { border: 1px solid var(--line); background: var(--surface); height: 40px; }
+.tp-col button.on, .tp-col button.on:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .tp-foot { display: flex; justify-content: space-between; align-items: center; }
 .tp-foot .hint { font-size: 11px; color: var(--muted); }
-.tp-man { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
-.tp-man input { width: auto; direction: ltr; font-size: 13px; font-weight: 700; padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--text); }
-.tp-man input:focus { border-color: var(--accent); }
 .dp .tp-rel { grid-template-columns: repeat(3, 1fr); }
-.dp .dp-week { grid-template-columns: repeat(5, 1fr); }
 .dp .tp-rel button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.dp .tp-rel button.on span { color: inherit; }
+
+/* التقويم */
+.cal { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.cal-head b { font-size: 13px; }
+.cal-head button { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--muted); }
+.cal-head button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.cal-head button:disabled { opacity: .3; cursor: default; }
+.cal-head svg { width: 15px; height: 15px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.cal-grid small { font-size: 10.5px; color: var(--muted); padding: 2px 0; }
+.cal-grid button, .cal-grid span { height: 28px; border-radius: 7px; font-size: 12.5px; display: grid; place-items: center; }
+.cal-grid button { font-weight: 700; }
+.cal-grid button:hover { background: var(--hover); color: var(--accent); }
+.cal-grid .past { color: var(--muted); opacity: .4; }
+.cal-grid .today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.cal-grid button.on, .cal-grid button.on:hover { background: var(--accent); color: var(--on-accent); }
 
 /* الترحيل والمهام القادمة */
 .carry-bar:empty, .upcoming:empty { display: none; }
