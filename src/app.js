@@ -44,6 +44,8 @@ const I = {
   toMini: svg('<path d="M4 14h6v6M20 10h-6V4M14 10l6-6M4 20l6-6"/>'),
   toBar: svg('<rect x="8" y="3" width="8" height="18" rx="3"/><path d="M12 8v.01M12 12v.01M12 16v.01" stroke-width="2.6"/>'),
   list: svg('<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-width="3"/>'),
+  cal: svg('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+  next: svg('<path d="M20 12H6M11 6l-6 6 6 6"/>'),
 };
 
 function ring(pct, size, stroke) {
@@ -56,17 +58,17 @@ function ring(pct, size, stroke) {
 
 /* ============ البيانات ============ */
 const DEFAULTS = {
-  side: 'right', y: 170, theme: 'system', collapse: 'bar', summaryTime: '21:00',
+  side: 'right', y: 170, theme: 'system', collapse: 'bar', summaryTime: '19:00',
   shortcut: 'Ctrl+Alt+N', summaryShown: '', autoClose: true, addType: 'daily',
 };
 let S = null;
 
 const ui = {
   open: false, view: 'tasks', prevMode: '',
-  editing: null, editType: 'daily', editTime: '', editTitle: '', editFocus: false,
-  confirming: null, expanded: new Set(),
-  add: { star: false, time: '', parsed: '' },
-  tp: null, tpPm: null,
+  editing: null, editType: 'daily', editTime: '', editDate: '', editTitle: '', editFocus: false,
+  confirming: null, expanded: new Set(), showUpcoming: true,
+  add: { star: false, time: '', parsed: '', date: '' },
+  tp: null, tpPm: null, dp: null,
   autostart: false, capture: false, msg: '', statsDay: null,
 };
 
@@ -83,6 +85,16 @@ function todayList() {
       ? t.created <= k
       : (!t.doneOn || t.doneOn === k) && (!t.due || t.due <= k)))
     .sort((a, b) => a.order - b.order);
+}
+
+// تاريخ ظهور المهمة أول مرة: اليومية من تاريخ بدايتها، ومرة واحدة من موعدها
+const startOf = (t) => (t.type === 'daily' ? t.created : t.due || t.created);
+
+function upcomingList() {
+  const k = today();
+  return S.tasks
+    .filter((t) => (t.type === 'daily' ? t.created > k : !t.doneOn && t.due > k))
+    .sort((a, b) => startOf(a).localeCompare(startOf(b)) || a.order - b.order);
 }
 
 const isDone = (t) => (t.type === 'daily' ? !!day().done[t.id] : t.doneOn === today());
@@ -139,8 +151,20 @@ function nextOrder() {
   return S.tasks.reduce((m, t) => Math.max(m, t.order), 0) + 1;
 }
 
-function addTask(title, type, star = false, time = '') {
-  S.tasks.push({ id: uid(), title, type, star, time, subs: [], created: today(), doneOn: null, due: null, order: nextOrder() });
+// date: يوم مستقبلي (فاضي = اليوم). اليومية تبدأ منه، ومرة واحدة تظهر فيه
+function addTask(title, type, star = false, time = '', date = '') {
+  const later = date && date > today() ? date : '';
+  S.tasks.push({
+    id: uid(), title, type, star, time, subs: [],
+    created: type === 'daily' && later ? later : today(),
+    doneOn: null, due: type === 'once' && later ? later : null, order: nextOrder(),
+  });
+}
+
+// ترحيل مهمة مرة واحدة غير منجزة لليوم التالي
+function carry(t) {
+  t.due = addDays(today(), 1);
+  t.carried = true;
 }
 
 function seed() {
@@ -246,6 +270,8 @@ function renderView(dock) {
           <div class="add-opts"></div>
         </form>
         <ul class="list"></ul>
+        <div class="carry-bar"></div>
+        <div class="upcoming"></div>
         <div class="foot"><kbd>Ctrl+N</kbd> إضافة · <kbd>Esc</kbd> إغلاق · <kbd>${esc(S.settings.shortcut)}</kbd> من أي مكان</div>`;
     }
     renderAddOpts(pv);
@@ -264,7 +290,9 @@ function renderAddOpts(pv) {
     </div>
     <button type="button" class="chip ${ui.add.star ? 'on' : ''}" data-act="addstar">${ui.add.star ? I.starFill : I.star} مهمّة</button>
     ${timeChip('add', ui.add.time || ui.add.parsed, !ui.add.time && !!ui.add.parsed)}
-    ${ui.tp === 'add' ? tpHTML('add', ui.add.time || ui.add.parsed) : ''}`;
+    ${dateChip('add', ui.add.date)}
+    ${ui.tp === 'add' ? tpHTML('add', ui.add.time || ui.add.parsed) : ''}
+    ${ui.dp === 'add' ? dpHTML('add', ui.add.date) : ''}`;
 }
 
 function renderList(pv) {
@@ -273,8 +301,53 @@ function renderList(pv) {
   ul.innerHTML = list.length
     ? list.map(itemHTML).join('')
     : '<div class="empty"><span class="big">✨</span>ما عندك مهام لليوم.<br>اكتب أول مهمة فوق واضغط Enter.</div>';
-  const ed = $('.edit input[name="title"]', ul);
+
+  const left = list.filter((t) => t.type === 'once' && !isDone(t)).length;
+  $('.carry-bar', pv).innerHTML = left
+    ? `<button class="btn carry-btn" data-act="carry">${I.next} رحّل غير المنجزة (${left}) لبكرة</button>`
+    : '';
+
+  const up = upcomingList();
+  $('.upcoming', pv).innerHTML = up.length ? `
+    <button class="up-head" data-act="upcoming">${I.cal} القادمة <b class="ltr">${up.length}</b><span class="chev ${ui.showUpcoming ? 'up' : ''}">${I.down}</span></button>
+    ${ui.showUpcoming ? `<ul class="list">${up.map(upItemHTML).join('')}</ul>` : ''}` : '';
+
+  const ed = $('.edit input[name="title"]', pv);
   if (ed && ui.editFocus) { ui.editFocus = false; ed.focus(); ed.select(); }
+}
+
+const dayLabel = (k) => {
+  const n = Math.round((dateOf(k) - dateOf(today())) / 86400000);
+  return n <= 0 ? 'اليوم' : n === 1 ? 'بكرة' : n === 2 ? 'بعد بكرة' : fmtShort.format(dateOf(k));
+};
+
+// مهمة قادمة: بدون إنجاز ولا سحب، بس تعديل وحذف
+function upItemHTML(t) {
+  if (ui.editing === t.id) return editHTML(t);
+  return `<li class="item up ${t.star ? 'star' : ''}" data-id="${t.id}">
+    <div class="row">
+      <span class="up-ic">${I.cal}</span>
+      <div class="body">
+        <div class="title">${esc(t.title)}</div>
+        <div class="meta">
+          <span class="tag ${t.type}">${t.type === 'daily' ? 'يومية' : 'مرة واحدة'}</span>
+          <span class="m when">${t.type === 'daily' ? 'تبدأ ' : ''}${dayLabel(startOf(t))}</span>
+          ${t.time ? `<span class="m time">${I.clock}<span class="ltr">${fmtTime(t.time)}</span></span>` : ''}
+        </div>
+      </div>
+      <div class="acts">
+        <button data-act="edit" data-id="${t.id}" title="تعديل">${I.pen}</button>
+        <button class="del" data-act="del" data-id="${t.id}" title="حذف">${I.trash}</button>
+      </div>
+    </div>
+    ${confirmHTML(t)}
+  </li>`;
+}
+
+function confirmHTML(t) {
+  return ui.confirming === t.id ? `<div class="confirm"><span>تحذف «${esc(t.title)}»؟</span>
+      <button class="btn danger" data-act="del-yes" data-id="${t.id}">حذف</button>
+      <button class="btn" data-act="del-no">إلغاء</button></div>` : '';
 }
 
 function itemHTML(t) {
@@ -301,14 +374,13 @@ function itemHTML(t) {
         </div>
       </div>
       <div class="acts">
+        ${t.type === 'once' && !d ? `<button data-act="carry1" data-id="${t.id}" title="رحّلها لبكرة">${I.next}</button>` : ''}
         <button class="${t.star ? 'on' : ''}" data-act="star" data-id="${t.id}" title="أولوية">${t.star ? I.starFill : I.star}</button>
         <button data-act="edit" data-id="${t.id}" title="تعديل">${I.pen}</button>
         <button class="del" data-act="del" data-id="${t.id}" title="حذف">${I.trash}</button>
       </div>
     </div>
-    ${ui.confirming === t.id ? `<div class="confirm"><span>تحذف «${esc(t.title)}»؟</span>
-      <button class="btn danger" data-act="del-yes" data-id="${t.id}">حذف</button>
-      <button class="btn" data-act="del-no">إلغاء</button></div>` : ''}
+    ${confirmHTML(t)}
     ${open ? subsHTML(t) : ''}
   </li>`;
 }
@@ -335,7 +407,9 @@ function editHTML(t) {
           <button type="button" data-act="etype" data-v="once" class="${ty === 'once' ? 'on' : ''}">مرة واحدة</button>
         </div>
         ${timeChip('edit', ui.editTime)}
+        ${dateChip('edit', ui.editDate)}
         ${ui.tp === 'edit' ? tpHTML('edit', ui.editTime) : ''}
+        ${ui.dp === 'edit' ? dpHTML('edit', ui.editDate) : ''}
       </div>
       <div class="edit-btns">
         <button type="submit" class="btn primary">حفظ</button>
@@ -373,6 +447,8 @@ function tpHTML(ctx, val) {
     .map((h) => b('tp-hour', h, cur && (cur[0] % 12 || 12) === h && (cur[0] >= 12) === pm ? 'on' : '', h)).join('');
   const mins = [0, 15, 30, 45].map((m) => b('tp-min', m, cur && cur[1] === m ? 'on' : '', `:${pad(m)}`)).join('');
   return `<div class="tp">
+    <label class="tp-man"><span>اكتب الوقت بالضبط</span>
+      <input type="time" class="tp-in" data-ctx="${ctx}" value="${val || ''}"></label>
     <div class="tp-rel">${rel}</div>
     <div class="tp-head">
       <div class="seg">${b('tp-period', 'am', pm ? '' : 'on', 'صباحًا')}${b('tp-period', 'pm', pm ? 'on' : '', 'مساءً')}</div>
@@ -390,7 +466,46 @@ function refreshTp() {
   const pv = $('.pv');
   if (!pv) return;
   if (ui.editing) renderList(pv); else if ($('.add-opts', pv)) renderAddOpts(pv);
-  $('.tp', pv)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  $('.tp, .dp', pv)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+/* ============ اختيار اليوم ============ */
+function dateChip(ctx, val) {
+  return `<button type="button" class="chip ${val ? 'has-time' : ''} ${ui.dp === ctx ? 'active' : ''}" data-act="dp-open" data-ctx="${ctx}" title="يوم المهمة">
+    ${I.cal}${val ? dayLabel(val) : 'اليوم'}</button>`;
+}
+
+function dpHTML(ctx, val) {
+  const k = today();
+  const b = (v, label) => `<button type="button" class="${(val || '') === v ? 'on' : ''}" data-act="dp-set" data-ctx="${ctx}" data-v="${v}">${label}</button>`;
+  const daily = (ctx === 'add' ? S.settings.addType : ui.editType) === 'daily';
+  // الأيام بعد بكرة بأسمائها
+  const week = Array.from({ length: 5 }, (_, i) => addDays(k, i + 2))
+    .map((d) => b(d, `<b>${DAYS[dateOf(d).getDay()]}</b><span class="ltr">${dateOf(d).getDate()}/${dateOf(d).getMonth() + 1}</span>`)).join('');
+  return `<div class="dp tp">
+    <div class="tp-rel">${b('', '<b>اليوم</b>')}${b(addDays(k, 1), '<b>بكرة</b>')}${b(addDays(k, 7), '<b>بعد أسبوع</b>')}</div>
+    <div class="tp-rel dp-week">${week}</div>
+    <label class="tp-man"><span>اختر تاريخ</span>
+      <input type="date" class="dp-in" data-ctx="${ctx}" min="${addDays(k, 1)}" value="${val || ''}"></label>
+    <div class="tp-foot"><span class="hint">${daily ? 'اليومية تبدأ من هذا اليوم' : 'تظهر المهمة في يومها'}</span>
+      <button type="button" class="btn primary" data-act="dp-close">تم</button></div>
+  </div>`;
+}
+
+function dpSet(ctx, v, close) {
+  if (ctx === 'add') ui.add.date = v; else ui.editDate = v;
+  if (close) ui.dp = null;
+  refreshTp();
+}
+
+function dpAct(name, el) {
+  const ctx = el.dataset.ctx;
+  switch (name) {
+    case 'dp-open': ui.dp = ui.dp === ctx ? null : ctx; ui.tp = null; refreshTp(); break;
+    case 'dp-close': ui.dp = null; refreshTp(); break;
+    case 'dp-set': dpSet(ctx, el.dataset.v, true); break;
+    default:
+  }
 }
 
 function tpSet(ctx, v, close) {
@@ -412,7 +527,7 @@ function tpAct(name, el) {
   const v = tpGet(ctx);
   const [h, m] = v ? v.split(':').map(Number) : [new Date().getHours(), 0];
   switch (name) {
-    case 'tp-open': ui.tp = ui.tp === ctx ? null : ctx; ui.tpPm = null; refreshTp(); break;
+    case 'tp-open': ui.tp = ui.tp === ctx ? null : ctx; ui.tpPm = null; ui.dp = null; refreshTp(); break;
     case 'tp-close': ui.tp = null; ui.tpPm = null; refreshTp(); break;
     case 'tp-set': tpSet(ctx, el.dataset.v, true); break;
     case 'tp-clear': tpSet(ctx, '', true); break;
@@ -623,6 +738,7 @@ function act(name, el) {
   const id = el.dataset.id;
   const t = id ? S.tasks.find((x) => x.id === id) : null;
   if (name.startsWith('tp-')) { tpAct(name, el); return; }
+  if (name.startsWith('dp-')) { dpAct(name, el); return; }
   switch (name) {
     case 'open': openPanel('tasks'); return;
     case 'close': closePanel(); return;
@@ -642,10 +758,14 @@ function act(name, el) {
       return;
     case 'edit':
       if (t) {
-        Object.assign(ui, { editing: id, editType: t.type, editTime: t.time || '', editTitle: t.title, editFocus: true, confirming: null, tp: null });
+        const st = startOf(t);
+        Object.assign(ui, {
+          editing: id, editType: t.type, editTime: t.time || '', editDate: st > today() ? st : '',
+          editTitle: t.title, editFocus: true, confirming: null, tp: null, dp: null,
+        });
       }
       break;
-    case 'edit-cancel': ui.editing = null; ui.tp = null; break;
+    case 'edit-cancel': ui.editing = null; ui.tp = ui.dp = null; break;
     case 'etype': ui.editType = el.dataset.v; $$('[data-act="etype"]').forEach((b) => b.classList.toggle('on', b === el)); return;
     case 'del': ui.confirming = id; break;
     case 'del-no': ui.confirming = null; break;
@@ -666,11 +786,11 @@ function act(name, el) {
     case 'addtype': S.settings.addType = el.dataset.v; save(); renderAddOpts($('.pv')); return;
     case 'addstar': ui.add.star = !ui.add.star; renderAddOpts($('.pv')); return;
     case 'statday': ui.statsDay = ui.statsDay === el.dataset.d ? null : el.dataset.d; break;
-    case 'carry': {
-      const tm = addDays(today(), 1);
-      todayList().filter((x) => !isDone(x) && x.type === 'once').forEach((x) => { x.due = tm; x.carried = true; });
+    case 'carry':
+      todayList().filter((x) => !isDone(x) && x.type === 'once').forEach(carry);
       save(); ui.view = 'tasks'; break;
-    }
+    case 'carry1': if (t) { carry(t); save(); } break;
+    case 'upcoming': ui.showUpcoming = !ui.showUpcoming; break;
     case 'set': {
       const k = el.dataset.k, v = el.dataset.v;
       S.settings[k] = v;
@@ -708,10 +828,10 @@ document.addEventListener('submit', (e) => {
     const raw = input.value.trim();
     if (!raw) return;
     const p = parseTime(raw);
-    addTask(p.title || raw, S.settings.addType, ui.add.star, ui.add.time || p.time);
+    addTask(p.title || raw, S.settings.addType, ui.add.star, ui.add.time || p.time, ui.add.date);
     input.value = '';
-    ui.add = { star: false, time: '', parsed: '' };
-    ui.tp = null;
+    ui.add = { star: false, time: '', parsed: '', date: '' };
+    ui.tp = ui.dp = null;
     save(); render();
     $('#addInput')?.focus();
   } else if (f.classList.contains('sub-add')) {
@@ -738,10 +858,16 @@ document.addEventListener('submit', (e) => {
       if (t.type === 'once') { t.doneOn = null; t.due = null; }
       setDone(t, wasDone);
     }
+    const k = today(), later = ui.editDate > k ? ui.editDate : '';
+    if (t.type === 'daily') {
+      if (later) t.created = later; else if (t.created > k) t.created = k;
+    } else if (later) {
+      t.due = later; t.carried = false; t.doneOn = null;
+    } else if (t.due > k) t.due = null;
     t.title = title;
     t.time = ui.editTime;
     ui.editing = null;
-    ui.tp = null;
+    ui.tp = ui.dp = null;
     save(); render();
   }
 });
@@ -752,6 +878,20 @@ document.addEventListener('input', (e) => {
     const t = parseTime(el.value).time;
     if (t !== ui.add.parsed) { ui.add.parsed = t; renderAddOpts($('.pv')); }
   } else if (el.name === 'title' && el.closest('.edit')) ui.editTitle = el.value;
+  else if (el.classList.contains('tp-in') || el.classList.contains('dp-in')) {
+    // الكتابة اليدوية: نحفظ القيمة ونحدّث الزر بس، عشان ما يضيع المؤشر من الحقل
+    const ctx = el.dataset.ctx, v = el.value;
+    if (el.classList.contains('tp-in')) {
+      if (ctx === 'add') ui.add.time = v; else ui.editTime = v;
+      const chip = $(`[data-act="tp-open"][data-ctx="${ctx}"]`);
+      if (chip) chip.outerHTML = timeChip(ctx, tpGet(ctx));
+    } else {
+      const d = v > today() ? v : '';
+      if (ctx === 'add') ui.add.date = d; else ui.editDate = d;
+      const chip = $(`[data-act="dp-open"][data-ctx="${ctx}"]`);
+      if (chip) chip.outerHTML = dateChip(ctx, d);
+    }
+  }
 });
 
 document.addEventListener('change', (e) => {
@@ -792,7 +932,7 @@ document.addEventListener('keydown', async (e) => {
   // e.code يشتغل حتى والكيبورد عربي
   if (e.ctrlKey && !e.altKey && !e.shiftKey && e.code === 'KeyN') { e.preventDefault(); focusAdd(); return; }
   if (e.key === 'Escape') {
-    if (ui.tp) { ui.tp = null; refreshTp(); return; }
+    if (ui.tp || ui.dp) { ui.tp = ui.dp = null; refreshTp(); return; }
     if (ui.confirming || ui.editing) { ui.confirming = ui.editing = null; render(); } else if (ui.open && ui.view !== 'tasks') { ui.view = 'tasks'; render(); } else if (ui.open) closePanel();
   }
 });
@@ -954,6 +1094,12 @@ function handleCmd(cmd) {
   S.settings = { ...DEFAULTS, ...S.settings };
   ui.autostart = init.autostart;
   if (!init.state) { seed(); save(); }
+  // v2: الملخص صار 7 مساءً بدل 9، ونحدّث اللي ما غيّروا الوقت الافتراضي
+  if ((S.v || 1) < 2) {
+    if (S.settings.summaryTime === '21:00') S.settings.summaryTime = '19:00';
+    S.v = 2;
+    save();
+  }
   applyTheme();
   applySide();
   api.onCmd(handleCmd);

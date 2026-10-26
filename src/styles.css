@@ -210,6 +210,30 @@ body.left .dock-panel.enter { animation-name: slideL; }
 .tp-hours button { height: 30px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 700; transition: all .12s; }
 .tp-hours button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .tp-foot { display: flex; justify-content: space-between; align-items: center; }
+.tp-foot .hint { font-size: 11px; color: var(--muted); }
+.tp-man { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.tp-man input { width: auto; direction: ltr; font-size: 13px; font-weight: 700; padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--text); }
+.tp-man input:focus { border-color: var(--accent); }
+.dp .tp-rel { grid-template-columns: repeat(3, 1fr); }
+.dp .dp-week { grid-template-columns: repeat(5, 1fr); }
+.dp .tp-rel button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.dp .tp-rel button.on span { color: inherit; }
+
+/* الترحيل والمهام القادمة */
+.carry-bar:empty, .upcoming:empty { display: none; }
+.carry-btn { width: 100%; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted); }
+.carry-btn svg { width: 14px; height: 14px; }
+.carry-btn:hover { color: var(--text); }
+.upcoming { margin-top: 12px; }
+.up-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 2px 8px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.up-head svg { width: 14px; height: 14px; }
+.up-head b { font-size: 11px; padding: 0 6px; border-radius: 6px; background: var(--hover); }
+.up-head .chev { margin-inline-start: auto; }
+.up-head .chev.up { transform: rotate(180deg); }
+.item.up { opacity: .85; }
+.up-ic { width: 24px; flex: none; display: grid; place-items: center; color: var(--muted); }
+.up-ic svg { width: 16px; height: 16px; }
+.m.when { color: var(--accent); font-weight: 700; }
 
 /* عناصر القائمة */
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

@@ -18,6 +18,10 @@ let dataFile = '';
 let state = null;
 let shortcut = '';
 
+// مجلد بيانات للتجربة: قبل قفل النسخة الواحدة عشان ما يتعارض مع النسخة المثبتة
+const testDir = process.argv.find((a) => a.startsWith('--data-dir='));
+if (testDir) app.setPath('userData', testDir.slice(11));
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -110,8 +114,6 @@ function createTray() {
 }
 
 function init() {
-  const testDir = process.argv.find((a) => a.startsWith('--data-dir='));
-  if (testDir) app.setPath('userData', testDir.slice(11));
   dataFile = path.join(app.getPath('userData'), 'munjez-data.json');
   state = loadState();
 
