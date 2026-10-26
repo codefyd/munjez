@@ -40,7 +40,7 @@
 
 1. نزّل **[Munjez-Setup.exe](https://github.com/codefyd/munjez/releases/latest/download/Munjez-Setup.exe)** من آخر إصدار.
 2. شغّله. يتثبّت على طول بدون أسئلة، ويشتغل مُنجز ويظهر الشريط على يمين الشاشة.
-3. لو طلع لك تحذير **Windows protected your PC**: اضغط **More info** وبعدها **Run anyway**. التحذير يطلع لأن التطبيق غير موقّع رقميًا، مو لأن فيه مشكلة.
+3. لو طلع لك تحذير **Windows protected your PC**: اضغط **More info المزيد من المعلومات** وبعدها **Run anyway التثبيت على أي حال**. التحذير يطلع لأن التطبيق غير موقّع رقميًا، مو لأن فيه مشكلة.
 
 تبي نسخة تشتغل بدون تثبيت؟ نزّل **[Munjez-Portable.exe](https://github.com/codefyd/munjez/releases/latest/download/Munjez-Portable.exe)**.
 
