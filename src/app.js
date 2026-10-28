@@ -979,20 +979,54 @@ document.addEventListener('pointerdown', (e) => {
   const h = e.target.closest('[data-drag]');
   if (!h || e.button !== 0 || e.target.closest('button:not([data-drag]), input')) return;
   const dock = $('.dock');
-  drag = { sy: e.clientY, st: dock.offsetTop, moved: false, h, dock, pid: e.pointerId };
+  drag = { sx: e.screenX, sy: e.clientY, st: dock.offsetTop, moved: false, h, dock, pid: e.pointerId };
 });
+// تبعيده عن الحافة لداخل الشاشة تقريبًا 4 سم = يتنقل للحافة الثانية إذا أفلته
+const SIDE_DRAG = 150;
+const dropHint = document.createElement('div');
+dropHint.className = 'drop-hint';
+document.body.append(dropHint);
+
 document.addEventListener('pointermove', (e) => {
   if (!drag) return;
-  const dy = e.clientY - drag.sy;
-  if (!drag.moved && Math.abs(dy) < 4) return;
+  const dy = e.clientY - drag.sy, dx = e.screenX - drag.sx;
+  if (!drag.moved && Math.abs(dy) < 4 && Math.abs(dx) < 4) return;
   if (!drag.moved) { drag.moved = true; drag.h.setPointerCapture(drag.pid); hideTip(); document.body.style.cursor = 'grabbing'; }
   drag.dock.style.top = clamp(drag.st + dy, 8, innerHeight - drag.dock.offsetHeight - 8) + 'px';
+  // يتبع المؤشر جانبيًا داخل النافذة عشان يبان إنه ينسحب
+  const left = S.settings.side === 'left';
+  const inward = left ? dx : -dx;
+  const r = drag.dock.getBoundingClientRect();
+  const tx = clamp(dx, 8 - (r.left - (drag.tx || 0)), innerWidth - 8 - (r.right - (drag.tx || 0)));
+  drag.tx = tx;
+  drag.dock.style.transform = `translateX(${tx}px)`;
+  drag.armed = inward >= SIDE_DRAG;
+  drag.dock.classList.toggle('moving', drag.armed);
+  dropHint.classList.toggle('on', drag.armed);
+  if (drag.armed) {
+    const b = drag.dock.getBoundingClientRect();
+    dropHint.textContent = `أفلت للنقل ${left ? 'لليمين' : 'لليسار'}`;
+    dropHint.style.left = clamp(b.left + b.width / 2, 80, innerWidth - 80) + 'px';
+    dropHint.style.top = Math.max(b.top - 8, 34) + 'px';
+  }
 });
-document.addEventListener('pointerup', (e) => {
+document.addEventListener('pointerup', async (e) => {
   if (!drag) return;
   const d = drag;
   drag = null;
   document.body.style.cursor = '';
+  d.dock.style.transform = '';
+  d.dock.classList.remove('moving');
+  dropHint.classList.remove('on');
+  if (d.moved && d.armed) {
+    const r = await api.moveTo(e.screenX, e.screenY, d.sy - d.st);
+    Object.assign(S.settings, r);
+    applySide();
+    save();
+    render();
+    setIgnore(true);
+    return;
+  }
   if (d.moved) {
     S.settings.y = d.dock.offsetTop;
     save();

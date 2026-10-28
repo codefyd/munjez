@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('munjez', {
   save: (s) => ipcRenderer.send('save', s),
   ignore: (v) => ipcRenderer.send('ignore', v),
   setSide: (side) => ipcRenderer.send('set-side', side),
+  moveTo: (x, y, offset) => ipcRenderer.invoke('move-to', x, y, offset),
   setAutostart: (v) => ipcRenderer.invoke('set-autostart', v),
   setShortcut: (acc) => ipcRenderer.invoke('set-shortcut', acc),
   pauseShortcut: () => ipcRenderer.send('pause-shortcut'),

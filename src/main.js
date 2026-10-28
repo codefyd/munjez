@@ -60,9 +60,14 @@ function setAutostart(on) {
   return getAutostart();
 }
 
+// الشاشة المحفوظة، وإذا انفصلت نرجع للرئيسية
+function display() {
+  return screen.getAllDisplays().find((d) => d.id === settings().display) || screen.getPrimaryDisplay();
+}
+
 function place() {
   if (!win) return;
-  const area = screen.getPrimaryDisplay().workArea;
+  const area = display().workArea;
   const left = settings().side === 'left';
   win.setBounds({
     x: left ? area.x : area.x + area.width - WIN_W,
@@ -180,6 +185,18 @@ ipcMain.on('ignore', (_e, v) => win && win.setIgnoreMouseEvents(v, { forward: tr
 ipcMain.on('set-side', (_e, side) => {
   state = { ...state, settings: { ...settings(), side } };
   place();
+});
+// إفلات الشريط بعد سحبه لداخل الشاشة: ينتقل للحافة الثانية،
+// وإذا أفلته فوق شاشة ثانية ينتقل لأقرب حافة فيها
+ipcMain.handle('move-to', (_e, x, y, offset) => {
+  const d = screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) });
+  const area = d.workArea;
+  const side = d.id === display().id
+    ? (settings().side === 'left' ? 'right' : 'left')
+    : (x < area.x + area.width / 2 ? 'left' : 'right');
+  state = { ...state, settings: { ...settings(), side, display: d.id } };
+  place();
+  return { side, display: d.id, y: Math.round(y - area.y - offset) };
 });
 ipcMain.handle('set-autostart', (_e, v) => setAutostart(v));
 ipcMain.handle('set-shortcut', (_e, acc) => {
